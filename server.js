@@ -4,11 +4,17 @@ const Amadeus = require('amadeus');
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
+
+// FIXED: Allow all devices and Vercel to connect
+app.use(cors({
+    origin: '*', 
+    methods: ['GET', 'POST'],
+    credentials: true
+}));
 
 const amadeus = new Amadeus({
-  clientId: process.env.AMADEUS_CLIENT_ID || 'WhePlAFFUDz7oCPbyfKqMRtBJ5QHrQm6',
-  clientSecret: process.env.AMADEUS_CLIENT_SECRET || 'SNt05IbIGt00R1yf'
+  clientId: process.env.AMADEUS_CLIENT_ID,
+  clientSecret: process.env.AMADEUS_CLIENT_SECRET
 });
 
 app.get('/autocomplete', async (req, res) => {
@@ -18,11 +24,14 @@ app.get('/autocomplete', async (req, res) => {
             subType: 'AIRPORT,CITY'
         });
         res.json(response.data);
-    } catch (err) { res.status(500).json([]); }
+    } catch (err) { 
+        console.error("Autocomplete Error:", err.response?.data || err.message);
+        res.status(500).json([]); 
+    }
 });
 
 app.get('/search-flights', async (req, res) => {
-    const { origin, destination, date, currency, travelClass, adults, children } = req.query;
+    const { origin, destination, date, currency, adults, children } = req.query;
     try {
         const response = await amadeus.shopping.flightOffersSearch.get({
             originLocationCode: origin,
@@ -31,18 +40,17 @@ app.get('/search-flights', async (req, res) => {
             adults: adults || '1',
             children: children || '0',
             currencyCode: currency || 'USD',
-            travelClass: travelClass || 'ECONOMY',
-            max: 40 
+            max: 20 
         });
-        // CRITICAL FIX: Ensure full dictionaries are sent
         res.json({
             data: response.data || [],
             dictionaries: response.dictionaries || { carriers: {}, aircraft: {} }
         });
     } catch (error) {
-        console.error("Amadeus API Error:", error.response?.data);
         res.status(500).json({ error: "Search failed." });
     }
 });
 
-app.listen(3000, () => console.log(`✅ FlightFinder Backend LIVE on http://localhost:3000`));
+// Render uses dynamic ports; this fix is required for deployment
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`✅ Backend LIVE on port ${PORT}`));
