@@ -1,13 +1,15 @@
 require('dotenv').config();
 const express = require('express');
 const Amadeus = require('amadeus');
+// Add this to the top of server.js
 const cors = require('cors');
 
-const app = express();
-
-// FIXED: Allow all devices and Vercel to connect
+// This allows both your local testing and your live Vercel site
 app.use(cors({
-    origin: '*', 
+    origin: [
+        'https://flight-finder-pro-seven.vercel.app', 
+        'http://localhost:3000'
+    ],
     methods: ['GET', 'POST'],
     credentials: true
 }));
