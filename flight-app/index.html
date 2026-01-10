@@ -142,7 +142,7 @@
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(async () => {
                 try {
-                    const res = await fetch(`http://localhost:3000/autocomplete?keyword=${query}`);
+                    const res = await fetch(`https://flightfinder-backend-z4dq.onrender.com=${query}`);
                     const data = await res.json();
                     sug.innerHTML = ''; sug.classList.remove('hidden');
                     data.forEach(loc => {
@@ -164,13 +164,13 @@
             document.getElementById('results').innerHTML = '';
             document.getElementById('search-card').classList.add('opacity-20', 'pointer-events-none');
             try {
-                const res1 = await fetch(`http://localhost:3000/search-flights?origin=${from}&destination=${to}&date=${dep}&currency=${curr}&travelClass=${tClass}&adults=${ad}&children=${ch}`);
+                const res1 = await fetch(`https://flightfinder-backend-z4dq.onrender.com/search-flights?origin=${from}&destination=${to}&date=${dep}&currency=${curr}&travelClass=${tClass}&adults=${ad}&children=${ch}`);
                 const data1 = await res1.json();
                 outboundOffers = data1.data || [];
                 airlineMap = { ...airlineMap, ...data1.dictionaries?.carriers }; 
                 aircraftMap = { ...aircraftMap, ...data1.dictionaries?.aircraft }; 
                 if (type === 'round-trip' && ret) {
-                    const res2 = await fetch(`http://localhost:3000/search-flights?origin=${to}&destination=${from}&date=${ret}&currency=${curr}&travelClass=${tClass}&adults=${ad}&children=${ch}`);
+                    const res2 = await fetch(`https://flightfinder-backend-z4dq.onrender.com/search-flights?origin=${to}&destination=${from}&date=${ret}&currency=${curr}&travelClass=${tClass}&adults=${ad}&children=${ch}`);
                     const data2 = await res2.json();
                     inboundOffers = data2.data || [];
                 }
