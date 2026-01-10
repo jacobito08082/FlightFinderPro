@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlightFinder Pro | Direct Booking Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .modal-active { overflow: hidden; }
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .details-content { max-height: 0; overflow: hidden; transition: max-height 0.6s cubic-bezier(0, 1, 0, 1); }
+        .details-content.open { max-height: 1200px; }
+        
+        :root {
+            --brand-blue: #1e3a8a; 
+            --brand-accent: #f59e0b; 
+            --bg-solid: #f1f5f9; 
+            --text-dark: #0f172a; 
+        }
+        body { background-color: var(--bg-solid); color: var(--text-dark); }
+        .bg-brand-solid { background-color: var(--brand-blue); }
+        .btn-brand-solid { background-color: var(--brand-blue); transition: background-color 0.2s; }
+        .btn-brand-solid:hover { background-color: #172554; } 
+        .btn-accent-solid { background-color: var(--brand-accent); color: white; }
+        
+        /* FIX: Suggestions layer priority */
+        .suggestions { z-index: 9999 !important; }
+
+        .seat { width: 30px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; cursor: pointer; }
+        .seat-avail { background: #e2e8f0; border: 2px solid #cbd5e1; color: #64748b; }
+        .seat-occupied { background: #fee2e2; border: 2px solid #fecaca; color: #ef4444; opacity: 0.6; }
+        .seat-premium { background: #fef3c7; border: 2px solid #fcd34d; color: #b45309; }
+
+        @keyframes progress { from { width: 0%; } to { width: 100%; } }
+    </style>
+</head>
+<body class="font-sans" onload="loadFeaturedDeals()">
+
+    <nav class="bg-brand-solid p-5 shadow-xl sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex items-center justify-between">
+            <h1 onclick="goHome()" class="text-2xl font-black text-white cursor-pointer flex items-center tracking-tighter">
+                <i class="fa-solid fa-paper-plane mr-3 text-amber-400"></i>FlightFinder
+            </h1>
+            <div class="hidden md:block bg-white/10 text-blue-100 text-[10px] font-black px-4 py-2 rounded-md uppercase border border-white/20">Production Ready v7.1</div>
+        </div>
+    </nav>
+
+    <div class="max-w-5xl mx-auto p-4 mt-10">
+        <div id="search-card" class="bg-white p-10 rounded-[2rem] shadow-xl border-2 border-slate-200 mb-8 transition-all">
+            <div class="flex flex-wrap items-center gap-4 mb-8">
+                <select id="tripType" onchange="toggleInputs()" class="bg-blue-100 text-blue-800 px-6 py-3 rounded-xl text-xs font-black outline-none border-none">
+                    <option value="one-way">ONE WAY</option>
+                    <option value="round-trip">ROUND TRIP</option>
+                </select>
+                <select id="travelClass" class="bg-slate-100 text-slate-700 px-6 py-3 rounded-xl text-xs font-black outline-none border-none">
+                    <option value="ECONOMY">ECONOMY</option>
+                    <option value="BUSINESS">BUSINESS</option>
+                </select>
+                <div class="flex items-center bg-emerald-100 text-emerald-800 px-6 py-3 rounded-xl gap-4 font-black">
+                    <div class="flex items-center gap-2"><span class="text-[10px]">ADULTS</span><input type="number" id="adults" value="1" min="1" max="9" class="bg-transparent w-8 text-sm outline-none"></div>
+                    <div class="flex items-center gap-2 border-l-2 border-emerald-300 pl-4"><span class="text-[10px]">KIDS</span><input type="number" id="children" value="0" min="0" max="9" class="bg-transparent w-8 text-sm outline-none"></div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="relative">
+                    <label class="block text-[11px] font-black text-slate-500 mb-2 uppercase">Origin</label>
+                    <input type="text" id="from" placeholder="Origin (e.g. NYC)" class="w-full p-4 bg-slate-100 border-2 border-slate-200 rounded-xl outline-none font-black text-sm" oninput="handleAutocomplete(this)" autocomplete="off">
+                    <div class="suggestions absolute bg-white border-2 w-full hidden shadow-2xl rounded-xl mt-2 max-h-48 overflow-y-auto"></div>
+                </div>
+                <div class="relative">
+                    <label class="block text-[11px] font-black text-slate-500 mb-2 uppercase">Destination</label>
+                    <input type="text" id="to" placeholder="Dest (e.g. LON)" class="w-full p-4 bg-slate-100 border-2 border-slate-200 rounded-xl outline-none font-black text-sm" oninput="handleAutocomplete(this)" autocomplete="off">
+                    <div class="suggestions absolute bg-white border-2 w-full hidden shadow-2xl rounded-xl mt-2 max-h-48 overflow-y-auto"></div>
+                </div>
+                <div><label class="block text-[11px] font-black text-slate-500 mb-2 uppercase">Depart</label><input type="date" id="depDate" class="w-full p-4 bg-slate-100 border-2 border-slate-200 rounded-xl font-black text-sm"></div>
+                <div id="retDateContainer" class="hidden"><label class="block text-[11px] font-black text-slate-500 mb-2 uppercase">Return</label><input type="date" id="retDate" class="w-full p-4 bg-slate-100 border-2 border-slate-200 rounded-xl font-black text-sm"></div>
+            </div>
+            <button onclick="startSearch()" class="w-full mt-10 btn-accent-solid text-white font-black py-5 rounded-2xl shadow-lg transition-all uppercase tracking-widest text-sm relative top-0 hover:-top-1">Search Live Flights</button>
+        </div>
+
+        <div id="featured-deals" class="mb-10">
+            <h2 class="text-xl font-black mb-6 text-slate-700 uppercase tracking-tighter"><i class="fa-solid fa-fire text-orange-500 mr-2"></i>Trending Now</h2>
+            <div id="deals-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+        </div>
+
+        <div id="outbound-banner" class="hidden bg-emerald-600 text-white p-8 rounded-[2.5rem] shadow-lg mb-8 flex justify-between items-center border-b-4 border-emerald-800 fade-in">
+            <div><div class="text-[10px] font-black uppercase tracking-widest opacity-80 mb-2">Leg 1 Locked</div><div id="outbound-summary-text" class="text-2xl font-black"></div></div>
+            <div class="text-right"><div id="outbound-summary-price" class="text-3xl font-black text-amber-300"></div><button onclick="goBack()" class="text-[10px] font-black uppercase underline mt-2 hover:text-white">Change</button></div>
+        </div>
+
+        <div id="filter-bar" class="hidden flex justify-between items-center mb-8 bg-white px-8 py-4 rounded-2xl shadow-md border-2 border-slate-200">
+            <span class="text-xs font-black text-slate-500 uppercase tracking-widest">Filters</span>
+            <div class="flex gap-4">
+                <select id="currency" onchange="startSearch()" class="bg-slate-100 text-slate-700 text-[11px] font-black px-4 py-2 rounded-lg outline-none cursor-pointer"><option value="USD">USD ($)</option><option value="EUR">EUR (€)</option></select>
+                <select id="sortBy" onchange="sortAndRender()" class="bg-slate-100 text-slate-700 text-[11px] font-black px-4 py-2 rounded-lg outline-none cursor-pointer"><option value="price">CHEAPEST</option><option value="duration">FASTEST</option></select>
+            </div>
+        </div>
+
+        <div id="loading" class="hidden text-center py-24"><i class="fas fa-circle-notch fa-spin fa-4x text-blue-200"></i></div>
+        <div id="results" class="space-y-6 pb-20"></div>
+    </div>
+
+    <div id="bookingModal" class="fixed inset-0 bg-slate-900/80 z-[100] hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-[3rem] p-12 max-w-2xl w-full shadow-2xl relative fade-in border-4 border-slate-100 overflow-y-auto max-h-[90vh]">
+            <button onclick="closeBooking()" class="absolute top-8 right-8 text-slate-400 hover:text-red-500 transition-colors text-3xl"><i class="fa-solid fa-circle-xmark"></i></button>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <script>
+        let debounceTimer, airlineMap = {}, aircraftMap = {}, outboundOffers = [], inboundOffers = [], selectedOutbound = null, selectedInbound = null, currentStep = 'outbound';
+        const symbols = { USD: '$', EUR: '€' };
+
+        const sampleCities = [
+            {code: 'NYC', name: 'New York', price: '199', img: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=400&q=80'},
+            {code: 'LON', name: 'London', price: '450', img: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=400&q=80'},
+            {code: 'PAR', name: 'Paris', price: '499', img: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80'}
+        ];
+
+        function loadFeaturedDeals() {
+            document.getElementById('deals-grid').innerHTML = sampleCities.map(city => `
+                <div class="bg-white rounded-3xl overflow-hidden shadow-lg border-2 border-slate-100 cursor-pointer group" onclick="quickSearch('${city.code}')">
+                    <div class="h-32 overflow-hidden"><img src="${city.img}" class="w-full h-full object-cover group-hover:scale-110 transition-all duration-500"></div>
+                    <div class="p-6 flex justify-between items-center"><span class="font-black text-slate-700">${city.name}</span><span class="text-emerald-600 font-black">$${city.price}+</span></div>
+                </div>`).join('');
+        }
+
+        function quickSearch(code) { document.getElementById('to').value = code; startSearch(); }
+        function goHome() { location.reload(); }
+        function toggleInputs() { document.getElementById('retDateContainer').classList.toggle('hidden', document.getElementById('tripType').value === 'one-way'); }
+        function formatTime(mil) { let [h, m] = mil.split(':'); h = parseInt(h); const ampm = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return `${h}:${m} ${ampm}`; }
+        function calculateLayover(arr, dep) { const diff = new Date(dep) - new Date(arr); return `${Math.floor(diff / 3600000)}h ${Math.floor((diff % 3600000) / 60000)}m`; }
+        function durationToMinutes(iso) { const m = iso.match(/PT(\d+H)?(\d+M)?/); return (parseInt(m[1]) || 0) * 60 + (parseInt(m[2]) || 0); }
+
+        async function handleAutocomplete(input) {
+            const query = input.value; const sug = input.nextElementSibling;
+            if (query.length < 2) return sug.classList.add('hidden');
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(async () => {
+                try {
+                    const res = await fetch(`http://localhost:3000/autocomplete?keyword=${query}`);
+                    const data = await res.json();
+                    sug.innerHTML = ''; sug.classList.remove('hidden');
+                    data.forEach(loc => {
+                        const d = document.createElement('div');
+                        d.className = "p-4 hover:bg-slate-100 cursor-pointer text-xs font-bold border-b transition text-slate-700";
+                        d.innerHTML = `<span class="text-blue-600 font-black mr-2">${loc.iataCode}</span> ${loc.name}`;
+                        d.onclick = () => { input.value = loc.iataCode; sug.classList.add('hidden'); };
+                        sug.appendChild(d);
+                    });
+                } catch(e) { sug.classList.add('hidden'); }
+            }, 300);
+        }
+
+        async function startSearch() {
+            const from = document.getElementById('from').value, to = document.getElementById('to').value, dep = document.getElementById('depDate').value, ret = document.getElementById('retDate').value, type = document.getElementById('tripType').value, curr = document.getElementById('currency').value, tClass = document.getElementById('travelClass').value, ad = document.getElementById('adults').value, ch = document.getElementById('children').value;
+            if(!to || !from || !dep) return alert("Select airports and dates.");
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('featured-deals').classList.add('hidden');
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('search-card').classList.add('opacity-20', 'pointer-events-none');
+            try {
+                const res1 = await fetch(`http://localhost:3000/search-flights?origin=${from}&destination=${to}&date=${dep}&currency=${curr}&travelClass=${tClass}&adults=${ad}&children=${ch}`);
+                const data1 = await res1.json();
+                outboundOffers = data1.data || [];
+                airlineMap = { ...airlineMap, ...data1.dictionaries?.carriers }; 
+                aircraftMap = { ...aircraftMap, ...data1.dictionaries?.aircraft }; 
+                if (type === 'round-trip' && ret) {
+                    const res2 = await fetch(`http://localhost:3000/search-flights?origin=${to}&destination=${from}&date=${ret}&currency=${curr}&travelClass=${tClass}&adults=${ad}&children=${ch}`);
+                    const data2 = await res2.json();
+                    inboundOffers = data2.data || [];
+                }
+                currentStep = 'outbound'; document.getElementById('loading').classList.add('hidden');
+                document.getElementById('filter-bar').classList.remove('hidden'); sortAndRender();
+            } catch (err) { alert("Server is offline. Run 'node server.js' in terminal."); document.getElementById('loading').classList.add('hidden'); document.getElementById('search-card').classList.remove('opacity-20', 'pointer-events-none'); }
+        }
+
+        function sortAndRender() {
+            const div = document.getElementById('results'), sortBy = document.getElementById('sortBy').value, curr = document.getElementById('currency').value, offers = currentStep === 'outbound' ? outboundOffers : inboundOffers;
+            div.innerHTML = '';
+            if (offers.length === 0) {
+                div.innerHTML = `<div class="bg-white p-16 rounded-[3rem] shadow-xl border-2 border-slate-100 text-center fade-in mt-10"><div class="w-24 h-24 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-8 text-4xl"><i class="fa-solid fa-plane-slash"></i></div><h2 class="text-3xl font-black mb-4 uppercase text-slate-800">No Flights Found</h2><p class="text-slate-500 font-bold mb-10 max-w-sm mx-auto text-sm">We couldn't find any flights for this route. Try a different date.</p><button onclick="location.reload()" class="btn-brand-solid text-white px-10 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Modified Search</button></div>`;
+                return;
+            }
+            const banner = document.getElementById('outbound-banner');
+            if (currentStep === 'inbound') {
+                banner.classList.remove('hidden');
+                document.getElementById('outbound-summary-text').innerText = `${selectedOutbound.itineraries[0].segments[0].departure.iataCode} → ${selectedOutbound.itineraries[0].segments.slice(-1)[0].arrival.iataCode}`;
+                document.getElementById('outbound-summary-price').innerText = `${symbols[curr]}${selectedOutbound.price.total}`;
+            } else banner.classList.add('hidden');
+
+            const sorted = offers.sort((a, b) => sortBy === 'price' ? parseFloat(a.price.total) - parseFloat(b.price.total) : durationToMinutes(a.itineraries[0].duration) - durationToMinutes(b.itineraries[0].duration));
+            sorted.forEach((f, i) => {
+                const it = f.itineraries[0], code = f.validatingAirlineCodes[0], encodedData = btoa(JSON.stringify(f));
+                let segHTML = '';
+                it.segments.forEach((seg, idx) => {
+                    const plane = aircraftMap[seg.aircraft.code] || "Plane " + seg.aircraft.code;
+                    segHTML += `<div class="flex items-start gap-8 mb-8 last:mb-0"><div class="flex flex-col items-center"><div class="w-4 h-4 rounded-full border-4 border-blue-600 bg-white"></div><div class="w-1 h-20 bg-blue-100"></div><div class="w-4 h-4 rounded-full border-4 border-blue-600 bg-white"></div></div><div class="flex-1"><div class="text-base font-black">${formatTime(seg.departure.at.split('T')[1].substring(0,5))} <span class="text-blue-600 ml-2">${seg.departure.iataCode}</span></div><div class="bg-slate-100 inline-block px-3 py-1 rounded-lg text-[10px] font-black text-slate-500 uppercase my-3 tracking-widest"><i class="fa-solid fa-plane mr-2"></i> ${airlineMap[seg.carrierCode] || seg.carrierCode} • ${plane} <button onclick="showSeatMap('${seg.aircraft.code}')" class="ml-4 text-blue-600 underline">View Seat Map</button></div><div class="text-base font-black">${formatTime(seg.arrival.at.split('T')[1].substring(0,5))} <span class="text-blue-600 ml-2">${seg.arrival.iataCode}</span></div></div></div>`;
+                    if (idx < it.segments.length-1) segHTML += `<div class="bg-amber-100 text-amber-800 p-4 rounded-2xl text-xs font-black uppercase text-center mb-8 border-2 border-amber-200">Layover: ${calculateLayover(seg.arrival.at, it.segments[idx+1].departure.at)} in ${seg.arrival.iataCode}</div>`;
+                });
+                const card = document.createElement('div');
+                card.className = "bg-white p-10 rounded-[2.5rem] shadow-lg border-2 border-slate-100 mb-6 transition-all";
+                card.innerHTML = `<div class="flex flex-col md:flex-row justify-between items-center gap-10"><div class="flex items-center gap-8 w-full md:w-1/3"><div class="w-16 h-16 bg-slate-50 border-2 border-slate-100 rounded-2xl flex items-center justify-center p-2"><img src="https://pics.avs.io/200/200/${code}.png" class="max-w-full" onerror="this.onerror=null; this.src='https://www.gstatic.com/flights/airline_logos/70px/default.png';"></div><div><div class="text-2xl font-black">${formatTime(it.segments[0].departure.at.split('T')[1].substring(0,5))} — ${formatTime(it.segments.slice(-1)[0].arrival.at.split('T')[1].substring(0,5))}</div><div class="text-[11px] font-black text-blue-600 uppercase mt-1 tracking-widest">${airlineMap[code] || code}</div></div></div><div class="flex flex-col items-center w-full md:w-1/3"><div class="text-xs font-black text-slate-500 uppercase">${it.segments.length-1 === 0 ? 'Direct' : it.segments.length-1 + ' connections'}</div><div class="w-40 h-2 bg-slate-100 relative my-4 rounded-full"><div class="absolute left-1/2 -translate-x-1/2 top-0 h-full w-10 bg-blue-600 rounded-full"></div></div><button onclick="document.getElementById('det-${i}').classList.toggle('open')" class="text-[10px] font-black text-blue-600 uppercase underline">Flight Details</button></div><div class="text-right w-full md:w-1/3"><div class="text-5xl font-black text-emerald-600 mb-3 tracking-tighter">${symbols[curr]}${f.price.total}</div><button onclick="handleSelection('${encodedData}')" class="btn-accent-solid px-10 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-lg">Select Leg</button></div></div><div id="det-${i}" class="details-content mt-10 pt-10 border-t-2 border-slate-100"><div class="bg-slate-50 p-10 rounded-[2.5rem] border-2 border-slate-200">${segHTML}</div></div>`;
+                div.appendChild(card);
+            });
+        }
+
+        function handleSelection(encoded) {
+            const s = JSON.parse(atob(encoded));
+            if (currentStep === 'outbound') {
+                selectedOutbound = s;
+                if (document.getElementById('tripType').value === 'round-trip') { currentStep = 'inbound'; window.scrollTo({ top: 0, behavior: 'smooth' }); sortAndRender(); }
+                else redirectToAirline(selectedOutbound);
+            } else { selectedInbound = s; showSummary(); }
+        }
+
+        function goBack() { currentStep = 'outbound'; selectedOutbound = null; sortAndRender(); }
+
+        function redirectToAirline(out, inb = null) {
+            const c = out.validatingAirlineCodes[0], from = out.itineraries[0].segments[0].departure.iataCode, to = out.itineraries[0].segments.slice(-1)[0].arrival.iataCode, dep = out.itineraries[0].segments[0].departure.at.split('T')[0], ad = document.getElementById('adults').value, k = document.getElementById('children').value;
+            const ret = inb ? inb.itineraries[0].segments[0].departure.at.split('T')[0] : '';
+            const links = {
+                'TP': `https://www.flytap.com/en-us/booking/flights?origin=${from}&destination=${to}&departureDate=${dep}${ret ? '&returnDate='+ret : ''}&adults=${ad}&children=${k}`,
+                'B6': `https://www.jetblue.com/booking/flights?from=${from}&to=${to}&depart=${dep}${ret ? '&return='+ret : ''}&adults=${ad}&children=${k}`,
+                'UA': `https://www.united.com/en/us/fly/booking/flights?f=${from}&t=${to}&d=${dep}${ret ? '&r='+ret : ''}&px=${ad}`,
+                'AA': `https://www.aa.com/booking/flights/choose-flights/query?origin=${from}&destination=${to}&departureDate=${dep}&returnDate=${ret}&adultCount=${ad}&childCount=${k}`
+            };
+            const finalUrl = links[c] || `https://www.google.com/flights?hl=en#flt=${from}.${to}.${dep}${ret ? '*'+to+'.'+from+'.'+ret : ''}`;
+            window.open(finalUrl, '_blank');
+            document.getElementById('modalContent').innerHTML = `<div class="text-center py-10 fade-in"><div class="mb-8 flex justify-center items-center gap-4"><img src="https://pics.avs.io/200/200/${c}.png" class="w-16 h-16 border rounded-xl" onerror="this.src='https://www.gstatic.com/flights/airline_logos/70px/default.png'"><i class="fa-solid fa-arrow-right text-slate-300 animate-pulse text-2xl"></i><div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg"><i class="fa-solid fa-plane-up"></i></div></div><h2 class="text-3xl font-black mb-2 uppercase">Tab Opened!</h2><p class="text-slate-500 font-bold mb-8 text-sm uppercase">Complete your booking on the airline's secure site.</p><div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden mb-6"><div class="bg-blue-600 h-full" style="animation: progress 2.5s linear forwards;"></div></div><button onclick="goHome()" class="text-[10px] font-black underline uppercase text-slate-400">Search Again</button></div>`;
+            document.getElementById('bookingModal').classList.remove('hidden'); document.getElementById('bookingModal').classList.add('flex');
+        }
+
+        function showSummary() {
+            const curr = document.getElementById('currency').value, ad = document.getElementById('adults').value, kids = document.getElementById('children').value;
+            const total = (parseFloat(selectedOutbound.price.total) + (selectedInbound ? parseFloat(selectedInbound.price.total) : 0)).toFixed(2);
+            document.getElementById('modalContent').innerHTML = `<h2 class="text-4xl font-black mb-8 text-slate-800 text-center uppercase">Itinerary Review</h2><div class="bg-slate-50 p-10 rounded-[3rem] border-2 border-slate-200 mb-10"><div class="flex justify-between font-black text-2xl mb-4 text-slate-900"><span>Departure</span><span>${symbols[curr]}${selectedOutbound.price.total}</span></div>${selectedInbound ? `<div class="border-t-2 border-slate-200 pt-8 mt-8 flex justify-between font-black text-2xl text-slate-900"><span>Return</span><span>${symbols[curr]}${selectedInbound.price.total}</span></div>` : ''}<div class="mt-8 text-[10px] font-black text-slate-400 uppercase">Total: ${ad} Adults, ${kids} Kids</div></div><div class="flex items-center justify-between border-t-2 pt-10"><div><div class="text-[11px] font-black text-slate-500 uppercase">Estimated Total</div><div class="text-6xl font-black text-emerald-600 tracking-tighter">${symbols[curr]}${total}</div></div><button onclick="redirectToAirline(selectedOutbound, selectedInbound)" class="btn-brand-solid text-white px-12 py-5 rounded-3xl font-black uppercase shadow-2xl">Confirm on Airline Site</button></div>`;
+            document.getElementById('bookingModal').classList.remove('hidden'); document.getElementById('bookingModal').classList.add('flex');
+        }
+
+        function showSeatMap(code) {
+            const name = aircraftMap[code] || code;
+            document.getElementById('modalContent').innerHTML = `<div class="text-center"><h2 class="text-3xl font-black mb-4 uppercase">${name}</h2><p class="text-slate-400 font-bold text-[10px] uppercase mb-10 tracking-widest">Cabin Map</p><div class="max-w-xs mx-auto bg-slate-50 border-x-8 border-slate-200 rounded-[3rem] p-10 shadow-inner">${Array.from({length: 8}).map((_, i) => `<div class="flex justify-center gap-3 mb-3"><div class="seat ${i < 2 ? 'seat-premium' : (Math.random() > 0.7 ? 'seat-occupied' : 'seat-avail')}">${i+1}A</div><div class="seat ${i < 2 ? 'seat-premium' : (Math.random() > 0.7 ? 'seat-occupied' : 'seat-avail')}">${i+1}B</div><div class="w-6 text-[8px] font-black text-slate-300 pt-2">${i+1}</div><div class="seat ${Math.random() > 0.7 ? 'seat-occupied' : 'seat-avail'}">${i+1}C</div><div class="seat ${Math.random() > 0.7 ? 'seat-occupied' : 'seat-avail'}">${i+1}D</div></div>`).join('')}</div></div>`;
+            document.getElementById('bookingModal').classList.remove('hidden'); document.getElementById('bookingModal').classList.add('flex');
+        }
+
+        function closeBooking() { document.getElementById('bookingModal').classList.add('hidden'); }
+    </script>
+</body>
+</html>
