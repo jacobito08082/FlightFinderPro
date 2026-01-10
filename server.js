@@ -1,15 +1,13 @@
 require('dotenv').config();
 const express = require('express');
 const Amadeus = require('amadeus');
-// Add this to the top of server.js
-const cors = require('cors');
+const cors = require('cors'); // This line was likely missing or out of order
 
-// This allows both your local testing and your live Vercel site
+const app = express();
+
+// FIXED: This is the section that caused the crash in your screenshot
 app.use(cors({
-    origin: [
-        'https://flight-finder-pro-seven.vercel.app', 
-        'http://localhost:3000'
-    ],
+    origin: '*', 
     methods: ['GET', 'POST'],
     credentials: true
 }));
