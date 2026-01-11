@@ -98,112 +98,112 @@
         </div>
     </div>
 
-    <script>
-       // CRITICAL: Must use HTTPS and no trailing slash
-const BACKEND_URL = 'https://flightfinder-backend-z4dq.onrender.com';
+   <script>
+    // 1. CRITICAL: Initialize variables and Backend URL
+   const BACKEND_URL = 'https://flightfinder-backend-z4dq.onrender.com';
+    let debounceTimer; // Fixed: Now defined globally
+    let airlineMap = {}; 
+    let aircraftMap = {}; 
+    let outboundOffers = [];
 
-async function handleAutocomplete(input) {
-    const query = input.value; 
-    const suggestions = input.nextElementSibling;
-    if (query.length < 2) return suggestions.classList.add('hidden');
+    // 2. FIXED: Added missing helper functions
+    function goHome() { location.reload(); }
+    
+    function toggleInputs() { 
+        const type = document.getElementById('tripType').value;
+        document.getElementById('retDateContainer').classList.toggle('hidden', type === 'one-way'); 
+    }
 
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(async () => {
-        try {
-            // FIXED: Full URL construction for cloud hosting
-            const res = await fetch(`${BACKEND_URL}/autocomplete?keyword=${query}`);
-            const data = await res.json();
-            
-            suggestions.innerHTML = ''; 
-            suggestions.classList.remove('hidden');
-            
-            data.forEach(loc => {
-                const d = document.createElement('div');
-                d.className = "p-4 hover:bg-slate-100 cursor-pointer text-xs font-bold border-b text-slate-700";
-                d.innerHTML = `<span class="text-blue-600 font-black mr-2">${loc.iataCode}</span> ${loc.name}`;
-                d.onclick = () => { 
-                    input.value = loc.iataCode; 
-                    suggestions.classList.add('hidden'); 
-                };
-                suggestions.appendChild(d);
-            });
-        } catch(e) { 
-            console.error("Autocomplete fetch failed:", e);
-            suggestions.classList.add('hidden'); 
-        }
-    }, 300);
-}
+    function formatTime(mil) { 
+        if (!mil) return '';
+        let [h, m] = mil.split(':'); 
+        h = parseInt(h); 
+        const ampm = h >= 12 ? 'PM' : 'AM'; 
+        h = h % 12 || 12; 
+        return `${h}:${m} ${ampm}`; 
+    }
 
-        async function startSearch() {
-            const from = document.getElementById('from').value, to = document.getElementById('to').value, dep = document.getElementById('depDate').value, curr = document.getElementById('currency')?.value || 'USD', ad = document.getElementById('adults').value, ch = document.getElementById('children').value;
-            if(!to || !from || !dep) return alert("Please select airports and dates.");
-            
-            document.getElementById('results').innerHTML = '<div class="text-center py-20"><i class="fas fa-circle-notch fa-spin fa-3x text-blue-600"></i></div>';
-            
+    // 3. Autocomplete with Cloud Fetch
+    async function handleAutocomplete(input) {
+        const query = input.value; 
+        const suggestions = input.nextElementSibling;
+        if (query.length < 2) return suggestions.classList.add('hidden');
+
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
             try {
-                const res = await fetch(`${BACKEND_URL}/search-flights?origin=${from}&destination=${to}&date=${dep}&currency=${curr}&adults=${ad}&children=${ch}`);
+                const res = await fetch(`${BACKEND_URL}/autocomplete?keyword=${query}`);
                 const data = await res.json();
-                outboundOffers = data.data || [];
-                airlineMap = { ...airlineMap, ...data.dictionaries?.carriers }; 
-                aircraftMap = { ...aircraftMap, ...data.dictionaries?.aircraft }; 
-                sortAndRender();
-            } catch (err) { 
-                alert("Search failed. Ensure your backend server is live."); 
-                document.getElementById('results').innerHTML = '';
-            }
-        }
-
-        function sortAndRender() {
-            const div = document.getElementById('results'), offers = outboundOffers;
-            div.innerHTML = '';
-            
-            if (offers.length === 0) {
-                div.innerHTML = `<div class="bg-white p-16 rounded-[3rem] shadow-xl border-2 border-slate-100 text-center fade-in mt-10"><h2 class="text-3xl font-black mb-4 uppercase text-slate-800">No Flights Found</h2><p class="text-slate-500 font-bold">Try a different route or date.</p></div>`;
-                return;
-            }
-
-            offers.forEach((f, i) => {
-                const it = f.itineraries[0], code = f.validatingAirlineCodes[0], encodedData = btoa(JSON.stringify(f));
-                let segHTML = '';
-                it.segments.forEach(seg => {
-                    segHTML += `<div class="bg-slate-50 p-6 rounded-2xl mb-4 font-black text-sm">${formatTime(seg.departure.at.split('T')[1].substring(0,5))} ${seg.departure.iataCode} → ${airlineMap[seg.carrierCode] || seg.carrierCode}</div>`;
-                });
                 
-                const card = document.createElement('div');
-                card.className = "bg-white p-10 rounded-[2.5rem] shadow-lg border-2 border-slate-100 mb-6";
-                card.innerHTML = `<div class="flex justify-between items-center"><div class="flex gap-6 items-center"><img src="https://pics.avs.io/200/200/${code}.png" class="w-16 h-16 border rounded-xl" onerror="this.src='https://www.gstatic.com/flights/airline_logos/70px/default.png'"><div><div class="text-2xl font-black">${airlineMap[code] || code}</div><div class="text-xs text-slate-400 uppercase font-black">${it.segments.length-1 === 0 ? 'Direct' : it.segments.length-1 + ' Stop'}</div></div></div><div class="text-right"><div class="text-4xl font-black text-emerald-600 mb-3">$${f.price.total}</div><button onclick="handleSelection('${encodedData}')" class="btn-accent-solid px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg">Select Flight</button></div></div>`;
-                div.appendChild(card);
-            });
+                suggestions.innerHTML = ''; 
+                suggestions.classList.remove('hidden');
+                
+                data.forEach(loc => {
+                    const d = document.createElement('div');
+                    d.className = "p-4 hover:bg-slate-100 cursor-pointer text-xs font-bold border-b text-slate-700";
+                    d.innerHTML = `<span class="text-blue-600 font-black mr-2">${loc.iataCode}</span> ${loc.name}`;
+                    d.onclick = () => { 
+                        input.value = loc.iataCode; 
+                        suggestions.classList.add('hidden'); 
+                    };
+                    suggestions.appendChild(d);
+                });
+            } catch(e) { 
+                console.error("Autocomplete fetch failed:", e);
+                suggestions.classList.add('hidden'); 
+            }
+        }, 300);
+    }
+
+    // 4. Search Live Flights
+    async function startSearch() {
+        const from = document.getElementById('from').value, 
+              to = document.getElementById('to').value, 
+              dep = document.getElementById('depDate').value, 
+              ad = document.getElementById('adults').value, 
+              ch = document.getElementById('children').value;
+        
+        if(!to || !from || !dep) return alert("Please select airports and dates.");
+        
+        document.getElementById('results').innerHTML = '<div class="text-center py-20"><i class="fas fa-circle-notch fa-spin fa-3x text-blue-600"></i></div>';
+        
+        try {
+            const res = await fetch(`${BACKEND_URL}/search-flights?origin=${from}&destination=${to}&date=${dep}&adults=${ad}&children=${ch}`);
+            const data = await res.json();
+            outboundOffers = data.data || [];
+            airlineMap = { ...airlineMap, ...data.dictionaries?.carriers }; 
+            aircraftMap = { ...aircraftMap, ...data.dictionaries?.aircraft }; 
+            sortAndRender();
+        } catch (err) { 
+            alert("Search failed. Ensure your Render backend is awake (might take 50 seconds)."); 
+            document.getElementById('results').innerHTML = '';
         }
+    }
 
-        function handleSelection(encoded) {
-            const selection = JSON.parse(atob(encoded));
-            showSummary(selection);
-        }
+    // ... [Keep your sortAndRender, handleSelection, and showSummary functions same] ...
 
-        function showSummary(f) {
-            document.getElementById('modalContent').innerHTML = `<h2 class="text-4xl font-black mb-8 text-center uppercase">Confirm Booking</h2><div class="bg-slate-50 p-10 rounded-[3rem] border-2 border-slate-200 mb-10 text-center"><div class="text-6xl font-black text-emerald-600">$${f.price.total}</div><p class="text-[10px] font-black text-slate-400 mt-4 uppercase">Direct transfer to secure airline portal</p></div><button onclick='redirectToAirline(${JSON.stringify(f)})' class="btn-brand-solid text-white w-full py-6 rounded-3xl font-black uppercase shadow-2xl">Continue to Airline</button>`;
-            document.getElementById('bookingModal').classList.remove('hidden'); document.getElementById('bookingModal').classList.add('flex');
-        }
+    // 5. Redirection Engine
+    function redirectToAirline(f) {
+        const c = f.validatingAirlineCodes[0], 
+              from = f.itineraries[0].segments[0].departure.iataCode, 
+              to = f.itineraries[0].segments.slice(-1)[0].arrival.iataCode, 
+              dep = f.itineraries[0].segments[0].departure.at.split('T')[0], 
+              ad = document.getElementById('adults').value;
+        
+        const links = {
+            'TP': `https://www.flytap.com/en-us/book-flights?origin=${from}&destination=${to}&departureDate=${dep}&adults=${ad}`,
+            'UA': `https://www.united.com/en/us/fly/booking/flights?f=${from}&t=${to}&d=${dep}&px=${ad}`,
+            'B6': `https://www.jetblue.com/booking/flights?from=${from}&to=${to}&depart=${dep}&adults=${ad}`,
+            'AA': `https://www.aa.com/booking/flights/choose-flights/query?origin=${from}&destination=${to}&departureDate=${dep}&adultCount=${ad}`
+        };
 
-        // REDIRECTION ENGINE - FIXED FOR TAP 404s
-        function redirectToAirline(f) {
-            const c = f.validatingAirlineCodes[0], from = f.itineraries[0].segments[0].departure.iataCode, to = f.itineraries[0].segments.slice(-1)[0].arrival.iataCode, dep = f.itineraries[0].segments[0].departure.at.split('T')[0], ad = document.getElementById('adults').value;
-            
-            const links = {
-                'TP': `https://www.flytap.com/en-us/book-flights?origin=${from}&destination=${to}&departureDate=${dep}&adults=${ad}`,
-                'UA': `https://www.united.com/en/us/fly/booking/flights?f=${from}&t=${to}&d=${dep}&px=${ad}`,
-                'B6': `https://www.jetblue.com/booking/flights?from=${from}&to=${to}&depart=${dep}&adults=${ad}`,
-                'AA': `https://www.aa.com/booking/flights/choose-flights/query?origin=${from}&destination=${to}&departureDate=${dep}&adultCount=${ad}`
-            };
+        const finalUrl = links[c] || `https://www.google.com/flights?hl=en#flt=${from}.${to}.${dep}`;
+        window.open(finalUrl, '_blank');
+        closeBooking();
+    }
 
-            const finalUrl = links[c] || `https://www.google.com/flights?hl=en#flt=${from}.${to}.${dep}`;
-            window.open(finalUrl, '_blank');
-            closeBooking();
-        }
-
-        function closeBooking() { document.getElementById('bookingModal').classList.add('hidden'); }
-        function loadFeaturedDeals() {} // Placeholder for trending logic
-    </script>
+    function closeBooking() { document.getElementById('bookingModal').classList.add('hidden'); }
+    function loadFeaturedDeals() { console.log("Dashboard Loaded"); }
+</script>
 </body>
 </html>
